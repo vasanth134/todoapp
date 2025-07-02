@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Card,
   List,
@@ -16,9 +16,9 @@ import {
   Col,
   Popconfirm,
   Tooltip,
-  message,
   Progress,
   Statistic,
+  Spin,
 } from 'antd'
 import {
   PlusOutlined,
@@ -34,113 +34,75 @@ import {
 } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { Todo, CreateTodoInput, UpdateTodoInput } from '../types'
-import { todoService } from '../services/api'
 import { useTheme } from '../contexts/ThemeContext'
+import { 
+  useTodos, 
+  useCreateTodo, 
+  useUpdateTodo, 
+  useDeleteTodo, 
+  useToggleTodo,
+  useTodoStats 
+} from '../hooks/useTodos'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
 
 const TodoList: React.FC = () => {
-  const [todos, setTodos] = useState<Todo[]>([])
-  const [loading, setLoading] = useState(false)
+  // TanStack Query hooks for data management
+  const { data: todos = [], isLoading, error } = useTodos()
+  const createTodoMutation = useCreateTodo()
+  const updateTodoMutation = useUpdateTodo()
+  const deleteTodoMutation = useDeleteTodo()
+  const toggleTodoMutation = useToggleTodo()
+  const stats = useTodoStats()
+
+  // Local UI state
   const [isModalVisible, setIsModalVisible] = useState(false)
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null)
   const [form] = Form.useForm()
   const { isDarkMode } = useTheme()
 
-  // Computed statistics
-  const totalTodos = todos.length
-  const completedTodos = todos.filter(todo => todo.completed).length
-  const completionRate = totalTodos > 0 ? Math.round((completedTodos / totalTodos) * 100) : 0
-
-  // Fetch todos from API
-  useEffect(() => {
-    fetchTodos()
-  }, [])
-
-  const fetchTodos = async () => {
-    try {
-      setLoading(true)
-      console.log('🔄 Fetching todos from database...')
-      const fetchedTodos = await todoService.getAllTodos()
-      console.log('✅ Received todos:', fetchedTodos)
-      setTodos(fetchedTodos)
-    } catch (error) {
-      console.error('❌ Error fetching todos:', error)
-      message.error('Failed to fetch todos')
-    } finally {
-      setLoading(false)
-    }
+  // Error handling
+  if (error) {
+    console.error('❌ Error fetching todos:', error)
   }
 
   const handleCreateTodo = async (values: CreateTodoInput) => {
-    try {
-      console.log('🔄 Creating todo:', values)
-      const newTodo = await todoService.createTodo(values)
-      console.log('✅ Todo created:', newTodo)
-      setTodos([newTodo, ...todos])
-      setIsModalVisible(false)
-      form.resetFields()
-      message.success('Todo created successfully!')
-    } catch (error) {
-      console.error('❌ Error creating todo:', error)
-      message.error('Failed to create todo')
-    }
+    createTodoMutation.mutate(values, {
+      onSuccess: () => {
+        setIsModalVisible(false)
+        form.resetFields()
+      }
+    })
   }
 
   const handleUpdateTodo = async (values: UpdateTodoInput) => {
     if (!editingTodo) return
 
-    try {
-      console.log('🔄 Updating todo:', editingTodo.id, values)
-      const updatedTodo = await todoService.updateTodo(editingTodo.id, values)
-      console.log('✅ Todo updated:', updatedTodo)
-      
-      const updatedTodos = todos.map((todo) =>
-        todo.id === editingTodo.id ? updatedTodo : todo
-      )
-      setTodos(updatedTodos)
-      setIsModalVisible(false)
-      setEditingTodo(null)
-      form.resetFields()
-      message.success('Todo updated successfully!')
-    } catch (error) {
-      console.error('❌ Error updating todo:', error)
-      message.error('Failed to update todo')
-    }
+    updateTodoMutation.mutate(
+      { id: editingTodo.id, updates: values },
+      {
+        onSuccess: () => {
+          setIsModalVisible(false)
+          setEditingTodo(null)
+          form.resetFields()
+        }
+      }
+    )
   }
 
   const handleDeleteTodo = async (id: string) => {
-    try {
-      console.log('🔄 Deleting todo:', id)
-      await todoService.deleteTodo(id)
-      console.log('✅ Todo deleted:', id)
-      setTodos(todos.filter((todo) => todo.id !== id))
-      message.success('Todo deleted successfully!')
-    } catch (error) {
-      console.error('❌ Error deleting todo:', error)
-      message.error('Failed to delete todo')
-    }
+    deleteTodoMutation.mutate(id)
   }
 
   const handleToggleComplete = async (id: string) => {
-    try {
-      const todo = todos.find(t => t.id === id)
-      if (!todo) return
+    const todo = todos.find(t => t.id === id)
+    if (!todo) return
 
-      console.log('🔄 Toggling todo completion:', id, !todo.completed)
-      const updatedTodo = await todoService.updateTodo(id, { completed: !todo.completed })
-      console.log('✅ Todo completion toggled:', updatedTodo)
-      
-      const updatedTodos = todos.map((t) =>
-        t.id === id ? updatedTodo : t
-      )
-      setTodos(updatedTodos)
-      message.success(`Todo marked as ${updatedTodo.completed ? 'completed' : 'incomplete'}!`)
-    } catch (error) {
-      console.error('❌ Error toggling todo completion:', error)
-      message.error('Failed to update todo')
-    }
+    toggleTodoMutation.mutate({
+      id,
+      completed: !todo.completed
+    })
   }
 
   const openCreateModal = () => {
@@ -214,7 +176,7 @@ const TodoList: React.FC = () => {
         </div>
 
         {/* Statistics Cards */}
-        {totalTodos > 0 && (
+        {stats.totalTodos > 0 && (
           <div style={{ 
             display: 'flex', 
             gap: '20px', 
@@ -225,7 +187,7 @@ const TodoList: React.FC = () => {
             <Card className="glass-card" style={{ minWidth: '140px', textAlign: 'center' }}>
               <Statistic
                 title="Total Tasks"
-                value={totalTodos}
+                value={stats.totalTodos}
                 prefix={<TrophyOutlined style={{ color: '#3b82f6' }} />}
                 valueStyle={{ color: isDarkMode ? '#f1f5f9' : '#1e293b', fontWeight: '600' }}
               />
@@ -233,7 +195,7 @@ const TodoList: React.FC = () => {
             <Card className="glass-card" style={{ minWidth: '140px', textAlign: 'center' }}>
               <Statistic
                 title="Completed"
-                value={completedTodos}
+                value={stats.completedTodos}
                 prefix={<CheckCircleOutlined style={{ color: '#10b981' }} />}
                 valueStyle={{ color: '#10b981', fontWeight: '600' }}
               />
@@ -245,7 +207,7 @@ const TodoList: React.FC = () => {
               <Progress
                 type="circle"
                 size={60}
-                percent={completionRate}
+                percent={stats.completionRate}
                 strokeColor={{
                   '0%': '#3b82f6',
                   '100%': '#10b981',
@@ -281,10 +243,12 @@ const TodoList: React.FC = () => {
 
       {/* Tasks List */}
       <Card className="glass-card" style={{ marginBottom: '32px' }}>
-        {loading ? (
+        {isLoading ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div className="custom-spinner" style={{ margin: '0 auto 16px' }}></div>
-            <Text>Loading your tasks...</Text>
+            <Spin size="large" />
+            <div style={{ marginTop: '16px' }}>
+              <Text>Loading your tasks...</Text>
+            </div>
           </div>
         ) : todos.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 20px' }}>
@@ -615,6 +579,7 @@ const TodoList: React.FC = () => {
                 type="primary"
                 htmlType="submit"
                 size="large"
+                loading={createTodoMutation.isPending || updateTodoMutation.isPending}
                 style={{
                   borderRadius: '12px',
                   padding: '0 32px',
