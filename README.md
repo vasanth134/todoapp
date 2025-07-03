@@ -27,20 +27,19 @@ A beautiful, modern todo application built with React, TypeScript, Node.js, and 
 - Express.js
 - TypeScript
 - PostgreSQL
-- Joi validation
 
 ## Quick Start
 
 ### Prerequisites
 - Node.js (v16 or higher)
 - PostgreSQL
-- npm or yarn
+- npm
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/vasanth134/todoapp
    cd todoapp
    ```
 
@@ -114,15 +113,3 @@ todoapp/
 - `PUT /api/todos/:id` - Update a todo
 - `DELETE /api/todos/:id` - Delete a todo
 - `GET /api/stats` - Get dashboard statistics
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test your changes
-5. Submit a pull request
-
-## License
-
-This project is open source and available under the MIT License.
